@@ -120,7 +120,7 @@ textarea{min-height:85px;resize:vertical}
 </section>
 
 <!-- 二维码弹层（紧凑内嵌） -->
-<div id="qrView" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+<div id="qrView" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:center;justify-content:center;padding:20px">
 <div style="background:var(--paper);border-radius:20px;padding:24px 20px;text-align:center;max-width:300px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.15)">
 <h3 style="margin:0 0 10px;font-size:17px">📲 扫码预约</h3>
 <div id="qrHolder" style="min-height:120px;display:flex;align-items:center;justify-content:center"><span class="small">生成中…</span></div>
@@ -345,30 +345,30 @@ async function removeQueue(id){
   try{ await api('/admin/queue/'+id, {method:'DELETE'}); loadQueue(); loadHome(); }catch(e){ alert('操作失败'); }
 }
 
-// ---------- 分享二维码（纯图片，不依赖外部库） ----------
+// ---------- 分享二维码（服务端生成 + 多源 fallback） ----------
 function showQR(){
   const url = location.origin;
   document.getElementById('qrUrl').textContent = url;
+  const holder = document.getElementById('qrHolder');
+  holder.innerHTML = '<span class="small">生成中…</span>';
+  // 显示弹窗
+  const qv = document.getElementById('qrView');
+  qv.style.display = 'flex';
   // 用多个免费 QR API 源，主源失败自动切备用
   const apis = [
     'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=',
     'https://quickchart.io/qr?text=',
-    'https://api.pwmqr.com/qrcode/create/?url=&size=200x200&data='
+    'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl='
   ];
-  const holder = document.getElementById('qrHolder');
-  holder.innerHTML = '<span class="small">生成中…</span>';
   let idx = 0;
   function tryLoad(){
-    if(idx >= apis.length){ holder.innerHTML='<span class="small">二维码加载失败<br>请直接复制链接分享</span>'; return; }
+    if(idx >= apis.length){ holder.innerHTML='<span class="small">二维码加载失败<br>请直接复制下方链接分享</span>'; return; }
     const img = new Image();
     img.onload = ()=>{ holder.innerHTML=''; img.style.borderRadius='12px'; img.style.background='#fff'; img.style.padding='8px'; holder.appendChild(img); };
     img.onerror = ()=>{ idx++; tryLoad(); };
     img.src = apis[idx++] + encodeURIComponent(url);
   }
   tryLoad();
-  // 显示弹窗
-  const qv = document.getElementById('qrView');
-  qv.style.display = 'flex';
 }
 
 // ---------- 启动 ----------
