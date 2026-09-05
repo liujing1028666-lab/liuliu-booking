@@ -26,7 +26,7 @@
 .queue{background:var(--blue)}
 label{display:block;font-weight:700;margin:14px 0 7px}input,textarea,select{width:100%;padding:13px;border:1px solid #d9d1c3;border-radius:12px;background:#fffdf8;font-size:16px;-webkit-appearance:none}
 textarea{min-height:85px;resize:vertical}
-#formView,#queueFormView,#successView,#adminBookingsView,#adminQueueView,#qrView{display:none}
+#formView,#queueFormView,#successView,#adminBookingsView,#adminQueueView{display:none}
 .back{border:0;background:none;font-size:16px;padding:4px 0 12px;cursor:pointer}.timebig{text-align:center;background:var(--blue);border-radius:16px;padding:18px;margin:8px 0;font-size:26px;font-weight:800}
 .success{text-align:center;padding:38px 12px}.success .face{font-size:64px}
 
@@ -104,7 +104,7 @@ textarea{min-height:85px;resize:vertical}
 
 <!-- 预约管理（刘刘 · 独立入口 /admin） -->
 <section id="adminBookingsView">
-<button class="back" onclick="goAdmin('adminBookingsView')">‹ 返回</button><h1>管理首页</h1>
+<h2 style="margin:0 0 12px;font-size:20px">📋 管理</h2>
 <div class="card"><h2>我的状态</h2><div class="adminrow"><button class="btn" id="btnAvail" onclick="setStatus('available')">我现在有空</button><button class="btn" style="background:var(--pink)" id="btnBusy" onclick="setStatus('busy')">暂时别来</button></div></div>
 <div class="card"><h2>⏳ 待审批预约</h2><div id="pendingList"><span class="small">加载中…</span></div></div>
 <div class="card"><h2>✅ 今日已通过</h2><div id="approvedList"><span class="small">加载中…</span></div></div>
@@ -119,11 +119,14 @@ textarea{min-height:85px;resize:vertical}
 <div class="card"><h2>等待找我的人</h2><div id="queueList"><span class="small">加载中…</span></div></div>
 </section>
 
-<!-- 二维码弹层 -->
-<section id="qrView">
-<button class="back" onclick="goAdmin('adminBookingsView')">‹ 返回</button><h2>扫码预约</h2>
-<div class="qrbox"><div id="qrHolder"><span class="small">生成中…</span></div><div class="small" id="qrUrl"></div></div>
-</section>
+<!-- 二维码弹层（紧凑内嵌） -->
+<div id="qrView" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+<div style="background:var(--paper);border-radius:20px;padding:24px 20px;text-align:center;max-width:300px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+<h3 style="margin:0 0 10px;font-size:17px">📲 扫码预约</h3>
+<div id="qrHolder" style="min-height:120px;display:flex;align-items:center;justify-content:center"><span class="small">生成中…</span></div>
+<p class="small" style="margin:8px 0 0;word-break:break-all" id="qrUrl"></p>
+<button class="btn ghost" onclick="document.getElementById('qrView').style.display='none'" style="margin-top:12px;font-size:14px">关闭</button>
+</div></div>
 
 </main>
 
@@ -166,7 +169,7 @@ function showBottomNav(){ document.getElementById('bottomNav').classList.add('vi
 function hideBottomNav(){ document.getElementById('bottomNav').classList.remove('visible'); }
 
 function show(id){
-  ['homeView','formView','queueFormView','successView','adminBookingsView','adminQueueView','qrView']
+  ['homeView','formView','queueFormView','successView','adminBookingsView','adminQueueView']
     .forEach(x => document.getElementById(x).style.display = (x===id?'block':'none'));
   document.querySelectorAll('.bottom span').forEach(s=>s.classList.remove('active'));
   const map={adminBookingsView:'navBook',adminQueueView:'navQueue'};
@@ -344,13 +347,28 @@ async function removeQueue(id){
 
 // ---------- 分享二维码（纯图片，不依赖外部库） ----------
 function showQR(){
-  show('qrView');
   const url = location.origin;
   document.getElementById('qrUrl').textContent = url;
-  // 用免费 QR API 直接生成图片，无需加载任何 JS 库
-  document.getElementById('qrHolder').innerHTML =
-    '<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(url)
-    +'" alt="预约二维码" style="border-radius:12px;background:#fff;padding:10px" onerror="this.parentNode.innerHTML=\'<span class=small>二维码生成失败，请直接复制上方链接</span>\'">';
+  // 用多个免费 QR API 源，主源失败自动切备用
+  const apis = [
+    'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=',
+    'https://quickchart.io/qr?text=',
+    'https://api.pwmqr.com/qrcode/create/?url=&size=200x200&data='
+  ];
+  const holder = document.getElementById('qrHolder');
+  holder.innerHTML = '<span class="small">生成中…</span>';
+  let idx = 0;
+  function tryLoad(){
+    if(idx >= apis.length){ holder.innerHTML='<span class="small">二维码加载失败<br>请直接复制链接分享</span>'; return; }
+    const img = new Image();
+    img.onload = ()=>{ holder.innerHTML=''; img.style.borderRadius='12px'; img.style.background='#fff'; img.style.padding='8px'; holder.appendChild(img); };
+    img.onerror = ()=>{ idx++; tryLoad(); };
+    img.src = apis[idx++] + encodeURIComponent(url);
+  }
+  tryLoad();
+  // 显示弹窗
+  const qv = document.getElementById('qrView');
+  qv.style.display = 'flex';
 }
 
 // ---------- 启动 ----------
