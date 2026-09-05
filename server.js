@@ -17,8 +17,11 @@ const SLOT_MIN = 30;
 const AVG_WAIT = 10; // 每位等待者平均耗时（分钟），用于估算等待时长
 
 function loadData() {
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
-  catch (e) { return { status: 'available', bookings: [], queue: [] }; }
+  let d;
+  try { d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+  catch (e) { d = { status: 'available', bookings: [], queue: [] }; }
+  if (!Array.isArray(d.openSlots) || !d.openSlots.length) d.openSlots = BASE_TIMES.slice();
+  return d;
 }
 function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
 function todayStr() {
@@ -32,10 +35,12 @@ function uid() { return Date.now() + '-' + Math.floor(Math.random() * 1000); }
 
 function computeSlots(data, date) {
   const dayBookings = data.bookings.filter(b => b.date === date && b.status !== 'rejected');
+  const open = (Array.isArray(data.openSlots) && data.openSlots.length) ? data.openSlots : BASE_TIMES;
   return BASE_TIMES.map(t => {
     const s = toMin(t), e = s + SLOT_MIN;
+    const isOpen = open.includes(t);
     const occupied = dayBookings.some(b => overlap(s, SLOT_MIN, toMin(b.time), b.duration));
-    return { time: t, end: fmtMin(e), available: !occupied, occupied };
+    return { time: t, end: fmtMin(e), available: isOpen && !occupied, closed: !isOpen, occupied };
   });
 }
 
@@ -66,7 +71,7 @@ const server = http.createServer(async (req, res) => {
   const p = u.pathname;
 
   // ---------- 静态页面 ----------
-  if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
+  if (req.method === 'GET' && (p === '/' || p === '/index.html' || p === '/admin')) {
     return serveFile(res, path.join(PUBLIC_DIR, 'index.html'), 'text/html; charset=utf-8');
   }
 
@@ -89,10 +94,18 @@ const server = http.createServer(async (req, res) => {
     if (!b.name || !b.topic || !b.time) return send(res, 400, { error: '缺少姓名 / 沟通事项 / 时间' });
     const date = b.date || todayStr();
     const data = loadData();
-    const slot = computeSlots(data, date).find(s => s.time === b.time);
-    if (slot && slot.occupied) return send(res, 409, { error: '该时段已被占用，请换一个' });
+    const open = (Array.isArray(data.openSlots) && data.openSlots.length) ? data.openSlots : BASE_TIMES;
+    const dur = Number(b.duration) || SLOT_MIN;
+    const startMin = toMin(b.time);
+    const dayBookings = data.bookings.filter(x => x.date === date && x.status !== 'rejected');
+    // 校验整段区间：每一步都必须是开放且未被占用
+    for (let m = startMin; m < startMin + dur; m += SLOT_MIN) {
+      const t = fmtMin(m);
+      if (!open.includes(t)) return send(res, 409, { error: '该时段未开放，请重新选择' });
+      if (dayBookings.some(bk => overlap(m, SLOT_MIN, toMin(bk.time), bk.duration))) return send(res, 409, { error: '该时段已被占用，请换一个' });
+    }
     const booking = {
-      id: uid(), date, time: b.time, duration: Number(b.duration) || 30,
+      id: uid(), date, time: b.time, duration: dur,
       name: b.name, topic: b.topic, note: b.note || '', status: 'pending', createdAt: Date.now()
     };
     data.bookings.push(booking); saveData(data);
@@ -118,6 +131,21 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/admin/status' && req.method === 'GET') {
     if (!needAuth()) return deny();
     return send(res, 200, { status: loadData().status });
+  }
+
+  // 开放时段配置（管理员可设置哪些时段对外开放）
+  if (p === '/api/admin/open-slots' && req.method === 'GET') {
+    if (!needAuth()) return deny();
+    return send(res, 200, { openSlots: loadData().openSlots || BASE_TIMES });
+  }
+  if (p === '/api/admin/open-slots' && req.method === 'POST') {
+    if (!needAuth()) return deny();
+    const b = await readBody(req);
+    if (!Array.isArray(b.openSlots)) return send(res, 400, { error: '格式错误' });
+    const data = loadData();
+    data.openSlots = BASE_TIMES.filter(t => b.openSlots.includes(t));
+    saveData(data);
+    return send(res, 200, { ok: true, openSlots: data.openSlots });
   }
   if (p === '/api/admin/status' && req.method === 'POST') {
     if (!needAuth()) return deny();
