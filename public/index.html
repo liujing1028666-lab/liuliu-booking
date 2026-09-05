@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>刘刘的预约小站 V3</title>
+<style>
+:root{--paper:#fffaf0;--ink:#252525;--line:#dfd7c7;--blue:#d9ecfb;--green:#dff2df;--pink:#f9e1df;--yellow:#faedc8;--muted:#777}
+*{box-sizing:border-box} body{margin:0;background:#f5efe3;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:520px;margin:auto;min-height:100vh;background:var(--paper);padding:18px 16px 88px;background-image:radial-gradient(#e9e0cf 0.7px,transparent .7px);background-size:9px 9px}
+.hero{padding:18px 14px 8px}.hero h1{font-size:34px;margin:0 0 8px;letter-spacing:1px}.hero p{margin:0;color:#555;line-height:1.7}
+.mascot{font-size:58px;float:right;margin-top:-54px}
+.card{background:rgba(255,255,255,.72);border:1.5px solid var(--line);border-radius:20px;padding:16px;margin:14px 0;box-shadow:0 3px 0 rgba(70,60,40,.04)}
+.status{display:flex;gap:12px;align-items:center}.dot{width:13px;height:13px;border-radius:50%;background:#5ab57b;box-shadow:0 0 0 5px #e4f4e8}
+.dot.busy{background:#e08a7a;box-shadow:0 0 0 5px #f7e2dd}
+.small{font-size:13px;color:var(--muted)} h2{font-size:18px;margin:0 0 12px}
+.day{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.slot{display:flex;justify-content:space-between;align-items:center;padding:13px 12px;border-radius:13px;margin:7px 0;background:#fff;border:1px solid #eee7da}
+.slot.available{background:var(--green);cursor:pointer}.slot.booked{color:#8b8b8b}.slot.selected{outline:2px solid #5597c8}
+.tag{font-size:13px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{border:1.5px solid #b7cddd;border-radius:15px;background:var(--blue);padding:14px 10px;font-weight:700;font-size:16px;cursor:pointer}.btn.yellow{background:var(--yellow);border-color:#e3c87b}.btn.primary{width:100%;background:#76acd7;color:#fff;border:none}.btn.ghost{background:#fff}
+.notice{background:var(--pink);display:flex;justify-content:space-between;align-items:center}
+.queue{background:var(--blue)}
+label{display:block;font-weight:700;margin:14px 0 7px}input,textarea{width:100%;padding:13px;border:1px solid #d9d1c3;border-radius:12px;background:#fffdf8;font-size:16px}textarea{min-height:85px;resize:vertical}
+#formView,#queueFormView,#successView,#adminBookingsView,#adminQueueView,#adminStatsView,#qrView{display:none}
+.back{border:0;background:none;font-size:16px;padding:4px 0 12px;cursor:pointer}.timebig{text-align:center;background:var(--blue);border-radius:16px;padding:18px;margin:8px 0;font-size:26px;font-weight:800}
+.success{text-align:center;padding:38px 12px}.success .face{font-size:64px}
+.bottom{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(520px,100%);background:#fffaf3eF;border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:space-around;font-size:12px}
+.bottom span{cursor:pointer;padding:4px 6px;border-radius:10px}.bottom span.active{background:var(--blue);font-weight:700}
+.adminrow{display:flex;gap:8px}.adminrow .btn{font-size:14px}.booking{padding:12px;border-bottom:1px dashed #d9d1c3}.booking:last-child{border:0}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:#fff;border:1px solid #eee7da;border-radius:14px;padding:14px;text-align:center}.stat b{font-size:26px;display:block}
+.qrbox{text-align:center}.qrbox img,.qrbox canvas{margin:12px auto;display:block;border-radius:12px;background:#fff;padding:10px}
+.adminLink{text-align:center;margin-top:22px}.adminLink button{border:0;background:none;color:#777;text-decoration:underline}
+.loading{opacity:.5;pointer-events:none}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+<!-- 今日概览（访客主页） -->
+<section id="homeView">
+  <div class="hero"><div class="mascot">◉ᴥ◉</div><h1>刘刘的<br>预约小站</h1><p>看看我什么时候方便，<br>选个时间再来找我吧～</p></div>
+  <div class="card status"><div class="dot" id="statusDot"></div><div><b id="statusText">加载中…</b><div class="small">最近更新：刚刚</div></div></div>
+  <div class="card">
+    <div class="day"><h2>📅 今天</h2><span class="small">请选择时间</span></div>
+    <div id="slots"></div>
+    <div class="actions"><button class="btn" onclick="setDuration(15)">📅 预约 15 分钟<br><span class="small">适合简单沟通</span></button><button class="btn yellow" onclick="setDuration(30)">📅 预约 30 分钟<br><span class="small">适合详细沟通</span></button></div>
+  </div>
+  <div class="card notice"><div><b>临时有事？</b><div class="small">先登记一下，我看到后找你</div></div><button class="btn ghost" onclick="openQueueForm()">✋ 我现在想找你</button></div>
+  <div class="card queue"><b>👥 当前等待 <span id="queueCount">0</span> 人</b><div class="small">预计等待约 <span id="queueWait">0</span> 分钟</div></div>
+  <div class="adminLink"><button onclick="goAdmin('adminBookingsView')">刘刘管理入口</button></div>
+</section>
+
+<!-- 预约表单 -->
+<section id="formView">
+<button class="back" onclick="show('homeView')">‹ 返回</button>
+<h2>预约时间</h2><div class="small" style="text-align:center">刘刘的预约小站</div>
+<div class="timebig" id="chosenTime">10:00 - 10:30</div>
+<label>您的姓名 *</label><input id="name" placeholder="请输入您的姓名"/>
+<label>沟通事项 *</label><textarea id="topic" placeholder="请简单说明沟通事项"></textarea>
+<label>备注（选填）</label><textarea id="note" placeholder="补充说明"></textarea>
+<div style="height:16px"></div><button class="btn primary" onclick="submitBooking()">提交预约申请</button>
+<p class="small">🔒 预约信息仅刘刘可见，其他人只能看到该时段已占用。</p>
+</section>
+
+<!-- 临时登记表单 -->
+<section id="queueFormView">
+<button class="back" onclick="show('homeView')">‹ 返回</button>
+<h2>临时找我</h2><div class="small" style="text-align:center">填一下，我看到后主动找你</div>
+<label>您的姓名 *</label><input id="qName" placeholder="请输入您的姓名"/>
+<label>想沟通的事 *</label><textarea id="qTopic" placeholder="一句话说明"></textarea>
+<label>备注（选填）</label><textarea id="qNote" placeholder="补充说明"></textarea>
+<div style="height:16px"></div><button class="btn primary" onclick="submitQueue()">加入等待</button>
+</section>
+
+<!-- 成功页 -->
+<section id="successView" class="success">
+<div class="face">◉ᴥ◉</div><h1>申请已提交！</h1><p id="successText"></p><button class="btn primary" onclick="show('homeView')">回到预约主页</button>
+</section>
+
+<!-- 预约管理（刘刘） -->
+<section id="adminBookingsView">
+<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>预约管理</h1>
+<div class="card"><h2>我的状态</h2><div class="adminrow"><button class="btn" id="btnAvail" onclick="setStatus('available')">我现在有空</button><button class="btn" style="background:var(--pink)" id="btnBusy" onclick="setStatus('busy')">暂时别来</button></div></div>
+<div class="card"><h2>预约列表</h2><div id="bookingList"><span class="small">加载中…</span></div></div>
+<div class="card qrbox"><h2>📲 分享预约页</h2><div class="small">让对方扫码即可预约（同一份数据）</div><button class="btn primary" onclick="showQR()">生成分享二维码</button></div>
+<p class="small">数据已保存在云端，不同手机扫码看到的是同一份预约。</p>
+</section>
+
+<!-- 临时记录（刘刘） -->
+<section id="adminQueueView">
+<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>临时记录</h1>
+<div class="card"><h2>等待找我的人</h2><div id="queueList"><span class="small">加载中…</span></div></div>
+</section>
+
+<!-- 数据统计（刘刘） -->
+<section id="adminStatsView">
+<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>数据统计</h1>
+<div class="statgrid" id="statGrid"><span class="small">加载中…</span></div>
+</section>
+
+<!-- 二维码弹层 -->
+<section id="qrView">
+<button class="back" onclick="show('adminBookingsView')">‹ 返回</button><h2>扫码预约</h2>
+<div class="qrbox"><div id="qrHolder"><span class="small">生成中…</span></div><div class="small" id="qrUrl"></div></div>
+</section>
+
+</main>
+<div class="bottom">
+  <span id="navHome" class="active" onclick="show('homeView')">🏠 今日概览</span>
+  <span id="navBook" onclick="goAdmin('adminBookingsView')">📅 预约管理</span>
+  <span id="navQueue" onclick="goAdmin('adminQueueView')">🕘 临时记录</span>
+  <span id="navStat" onclick="goAdmin('adminStatsView')">📊 数据统计</span>
+</div>
+
+<script>
+const API = '/api';
+let token = sessionStorage.getItem('liuliuToken') || '';
+let duration = 30, selectedTime = null;
+
+function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmt(n){ return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
+
+async function api(path, opts={}){
+  opts.headers = opts.headers || {};
+  if(token) opts.headers['x-admin-token'] = token;
+  const r = await fetch(API+path, opts);
+  if(r.status === 401){ token=''; sessionStorage.removeItem('liuliuToken'); throw {auth:true}; }
+  return r.json().catch(()=>({}));
+}
+async function ensureToken(){
+  if(token) return true;
+  const p = prompt('请输入管理口令（默认 liuliu）');
+  if(p === null) return false;
+  token = p;
+  try { await api('/admin/status'); sessionStorage.setItem('liuliuToken', token); return true; }
+  catch(e){ token=''; alert('口令不正确'); return false; }
+}
+
+function show(id){
+  ['homeView','formView','queueFormView','successView','adminBookingsView','adminQueueView','adminStatsView','qrView']
+    .forEach(x => document.getElementById(x).style.display = (x===id?'block':'none'));
+  document.querySelectorAll('.bottom span').forEach(s=>s.classList.remove('active'));
+  const map={homeView:'navHome',adminBookingsView:'navBook',adminQueueView:'navQueue',adminStatsView:'navStat'};
+  if(map[id]) document.getElementById(map[id]).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ---------- 主页 ----------
+async function loadHome(){
+  try{
+    const s = await api('/state');
+    const dot = document.getElementById('statusDot');
+    dot.className = 'dot' + (s.status==='busy'?' busy':'');
+    document.getElementById('statusText').textContent = s.status==='busy' ? '暂时不太方便，急事请走临时登记' : '现在方便沟通';
+    document.getElementById('queueCount').textContent = s.queueCount;
+    document.getElementById('queueWait').textContent = s.queueWaitMin;
+    const el = document.getElementById('slots'); el.innerHTML='';
+    s.slots.forEach(slot=>{
+      const d = document.createElement('div');
+      d.className = 'slot ' + (slot.available ? 'available' : 'booked');
+      d.innerHTML = `<span>${slot.time} - ${slot.end}</span><span class="tag">${slot.available?'🟢 可申请 ›':'⏳ 已占用 / 审批中'}</span>`;
+      if(slot.available) d.onclick = ()=>choose(slot.time);
+      el.appendChild(d);
+    });
+  }catch(e){ if(!e.auth) alert('加载失败，请刷新'); }
+}
+function setDuration(n){ duration=n; alert('已选择 '+n+' 分钟，请点击一个可预约时间'); }
+function choose(t){ selectedTime=t; document.getElementById('chosenTime').textContent = t+' - '+fmt(toMinLocal(t)+duration); show('formView'); }
+function toMinLocal(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+
+async function submitBooking(){
+  const name = document.getElementById('name').value.trim();
+  const topic = document.getElementById('topic').value.trim();
+  if(!name || !topic){ alert('请填写姓名和沟通事项'); return; }
+  try{
+    const r = await api('/bookings', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({time:selectedTime, duration, name, topic, note:document.getElementById('note').value})});
+    if(r.error){ alert(r.error); return; }
+    document.getElementById('successText').textContent = `${name}，你的 ${selectedTime} 预约申请已提交，等待刘刘确认。`;
+    show('successView'); loadHome();
+  }catch(e){ alert('提交失败，请重试'); }
+}
+
+// ---------- 临时登记 ----------
+function openQueueForm(){ show('queueFormView'); }
+async function submitQueue(){
+  const name = document.getElementById('qName').value.trim();
+  const topic = document.getElementById('qTopic').value.trim();
+  if(!name || !topic){ alert('请填写姓名和想沟通的事'); return; }
+  try{
+    const r = await api('/queue', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, topic, note:document.getElementById('qNote').value})});
+    if(r.error){ alert(r.error); return; }
+    document.getElementById('successText').textContent = `${name}，已加入等待，刘刘看到后会主动找你～`;
+    show('successView'); loadHome();
+  }catch(e){ alert('提交失败，请重试'); }
+}
+
+// ---------- 管理入口（鉴权 + 路由） ----------
+async function goAdmin(view){
+  if(!(await ensureToken())) { show('homeView'); return; }
+  show(view);
+  if(view==='adminBookingsView') loadBookings();
+  if(view==='adminQueueView') loadQueue();
+  if(view==='adminStatsView') loadStats();
+}
+
+async function loadBookings(){
+  try{
+    const s = await api('/admin/status');
+    document.getElementById('btnAvail').style.opacity = s.status==='available'?1:.5;
+    document.getElementById('btnBusy').style.opacity = s.status==='busy'?1:.5;
+    const r = await api('/admin/bookings');
+    const el = document.getElementById('bookingList');
+    if(!r.bookings.length){ el.innerHTML='<span class="small">暂无预约</span>'; return; }
+    el.innerHTML = r.bookings.map(b=>`
+      <div class="booking"><b>${b.date} ${b.time} · ${b.name}</b><div>${b.topic}</div>
+      <div class="small">${b.duration} 分钟 · ${b.status==='pending'?'⏳ 待审批':b.status==='approved'?'✅ 已通过':'❌ 已拒绝'}</div>
+      ${b.status==='pending'?`<div class="adminrow" style="margin-top:9px">
+        <button class="btn" onclick="decide('${b.id}','approved')">✓ 通过</button>
+        <button class="btn" style="background:var(--pink)" onclick="decide('${b.id}','rejected')">✕ 拒绝</button></div>`:''}</div>`).join('');
+  }catch(e){ if(!e.auth) alert('加载失败'); }
+}
+async function decide(id, decision){
+  try{
+    await api('/admin/bookings/'+id+'/decide', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({decision})});
+    loadBookings();
+  }catch(e){ alert('操作失败'); }
+}
+async function setStatus(status){
+  try{
+    await api('/admin/status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+    loadBookings(); loadHome();
+  }catch(e){ alert('操作失败'); }
+}
+
+async function loadQueue(){
+  try{
+    const r = await api('/admin/queue');
+    const el = document.getElementById('queueList');
+    if(!r.queue.length){ el.innerHTML='<span class="small">暂无等待的人</span>'; return; }
+    el.innerHTML = r.queue.map(q=>`
+      <div class="booking"><b>${q.name}</b><div>${q.topic}</div>
+      <div class="adminrow" style="margin-top:9px"><button class="btn" onclick="removeQueue('${q.id}')">已联系 / 移除</button></div></div>`).join('');
+  }catch(e){ if(!e.auth) alert('加载失败'); }
+}
+async function removeQueue(id){
+  try{ await api('/admin/queue/'+id, {method:'DELETE'}); loadQueue(); loadHome(); }catch(e){ alert('操作失败'); }
+}
+
+async function loadStats(){
+  try{
+    const r = await api('/admin/stats');
+    document.getElementById('statGrid').innerHTML = `
+      <div class="stat"><b>${r.total}</b><div class="small">累计预约</div></div>
+      <div class="stat"><b>${r.todayBookings}</b><div class="small">今日预约</div></div>
+      <div class="stat"><b style="color:#e0a000">${r.pending}</b><div class="small">待审批</div></div>
+      <div class="stat"><b style="color:#3a9d5a">${r.approved}</b><div class="small">已通过</div></div>
+      <div class="stat"><b style="color:#c25">${r.rejected}</b><div class="small">已拒绝</div></div>
+      <div class="stat"><b>${r.queueCount}</b><div class="small">等待人数</div></div>`;
+  }catch(e){ if(!e.auth) alert('加载失败'); }
+}
+
+// ---------- 分享二维码 ----------
+async function showQR(){
+  show('qrView');
+  const url = location.origin;
+  document.getElementById('qrUrl').textContent = url;
+  const holder = document.getElementById('qrHolder');
+  holder.innerHTML = '<span class="small">生成中…</span>';
+  if(window.QRCode) return renderQR(url);
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+  s.onload = ()=>renderQR(url);
+  s.onerror = ()=>holder.innerHTML = '<span class="small">二维码库加载失败，请直接复制链接分享：<br>'+url+'</span>';
+  document.head.appendChild(s);
+}
+function renderQR(url){
+  QRCode.toCanvas(url, {width:220, margin:1}, (err, canvas)=>{
+    document.getElementById('qrHolder').innerHTML='';
+    if(err) return;
+    canvas.style.background='#fff'; canvas.style.padding='10px'; canvas.style.borderRadius='12px';
+    document.getElementById('qrHolder').appendChild(canvas);
+  });
+}
+
+// 启动
+loadHome();
+show('homeView');
+</script>
+</body></html>
