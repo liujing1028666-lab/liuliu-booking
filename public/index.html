@@ -16,7 +16,8 @@
 .small{font-size:13px;color:var(--muted)} h2{font-size:18px;margin:0 0 12px}
 .day{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .slot{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;border-radius:13px;margin:6px 0;background:#fff;border:1px solid #eee7da}
-.slot.available{background:var(--green);cursor:pointer}.slot.booked{color:#8b8b8b}.slot.selected{outline:2px solid #5597c8}
+.slot.available{background:var(--green);cursor:pointer}.slot.booked{color:#8b8b8b}.slot.selected{background:#c5ddf5;outline:2px solid #5597c8}
+.slot.closed{background:#f3efe6;color:#b3a98f;cursor:not-allowed}
 .tag{font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:8px}
 .btn{border:1.5px solid #b7cddd;border-radius:15px;background:var(--blue);padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;text-align:center;flex:1;min-width:0}
 .btn.yellow{background:var(--yellow);border-color:#e3c87b}.btn.primary{width:100%;background:#76acd7;color:#fff;border:none;font-size:17px;padding:15px}.btn.ghost{background:#fff}
@@ -25,9 +26,17 @@
 .queue{background:var(--blue)}
 label{display:block;font-weight:700;margin:14px 0 7px}input,textarea,select{width:100%;padding:13px;border:1px solid #d9d1c3;border-radius:12px;background:#fffdf8;font-size:16px;-webkit-appearance:none}
 textarea{min-height:85px;resize:vertical}
-#formView,#queueFormView,#successView,#adminBookingsView,#adminQueueView,#adminStatsView,#qrView{display:none}
+#formView,#queueFormView,#successView,#adminBookingsView,#adminQueueView,#qrView{display:none}
 .back{border:0;background:none;font-size:16px;padding:4px 0 12px;cursor:pointer}.timebig{text-align:center;background:var(--blue);border-radius:16px;padding:18px;margin:8px 0;font-size:26px;font-weight:800}
 .success{text-align:center;padding:38px 12px}.success .face{font-size:64px}
+
+/* 时段竖向滚动列表 */
+.slotlist{max-height:312px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:3px;margin-top:4px}
+.slotlist::-webkit-scrollbar{width:6px}
+.slotlist::-webkit-scrollbar-thumb{background:#d8cdb8;border-radius:3px}
+.selbar{margin-top:12px;display:none}
+.selbar.show{display:block}
+.rangeinfo{text-align:center;background:var(--blue);border-radius:14px;padding:12px;font-weight:700;font-size:16px;margin-bottom:10px}
 
 /* 底部导航 —— 默认隐藏，管理员登录后才显示 */
 .bottom{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(520px,100%);background:#fffaf3eF;border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;justify-content:space-around;font-size:12px;z-index:99}
@@ -40,14 +49,10 @@ textarea{min-height:85px;resize:vertical}
 .adminLink{text-align:center;margin-top:22px}.adminLink button{border:0;background:none;color:#777;text-decoration:underline;font-size:14px}
 .loading{opacity:.5;pointer-events:none}
 
-/* 时长选择器 */
-.duration-picker{text-align:center;margin:10px 0}
-.duration-options{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:8px 0}
-.dur-btn{border:1.5px solid #ccc;border-radius:12px;background:#fff;padding:8px 16px;font-size:14px;cursor:pointer}
+/* 开放时段切换按钮（管理后台用） */
+.duration-options{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.dur-btn{border:1.5px solid #ccc;border-radius:12px;background:#fff;padding:8px 14px;font-size:14px;cursor:pointer}
 .dur-btn.active{border-color:#5597c8;background:var(--blue);font-weight:700}
-.dur-custom{margin-top:8px;display:none}
-.dur-custom.show{display:block}
-.dur-custom input{width:80px;display:inline-block;text-align:center;margin-right:6px}
 </style>
 </head>
 <body>
@@ -58,41 +63,28 @@ textarea{min-height:85px;resize:vertical}
   <div class="hero"><img src="/mascot.jpg" alt="" class="mascot-img"/><h1>刘刘的<br>预约小站</h1><p>看看我什么时候方便，<br>选个时间再来找我吧～</p></div>
   <div class="card status"><div class="dot" id="statusDot"></div><div><b id="statusText">加载中…</b><div class="small">最近更新：刚刚</div></div></div>
   <div class="card">
-    <div class="day"><h2>📅 今天</h2><span class="small">选时间 → 填信息 → 提交</span></div>
-
-    <!-- 时长选择（在时段上方） -->
-    <div class="duration-picker">
-      <div class="small" style="margin-bottom:6px">预约时长</div>
-      <div class="duration-options">
-        <button class="dur-btn active" onclick="setDuration(15,this)">15 分钟</button>
-        <button class="dur-btn" onclick="setDuration(30,this)">30 分钟</button>
-        <button class="dur-btn" onclick="setDuration(45,this)">45 分钟</button>
-        <button class="dur-btn" onclick="setDuration(60,this)">60 分钟</button>
-        <button class="dur-btn" onclick="toggleCustom(this)">自定义</button>
-      </div>
-      <div class="dur-custom" id="customDurRow">
-        <input type="number" id="customMin" min="5" max="180" placeholder="分钟" value="20"/> 分钟
-        <button class="btn" style="display:inline-block;width:auto;padding:8px 16px;font-size:14px" onclick="applyCustom()">确定</button>
-      </div>
+    <div class="day"><h2>📅 今天</h2><span class="small">点时段可连续多选 ›</span></div>
+    <div class="slotlist" id="slots"></div>
+    <div class="selbar" id="selbar">
+      <div class="rangeinfo" id="rangeInfo"></div>
+      <button class="btn primary" onclick="openForm()">➡️ 下一步：填写信息</button>
     </div>
-
-    <div id="slots"></div>
   </div>
   <div class="card notice"><div><b>临时有事？</b><div class="small">先登记一下，我看到后找你</div></div><button class="btn ghost" onclick="openQueueForm()">✋ 我现在想找你</button></div>
   <div class="card queue"><b>👥 当前等待 <span id="queueCount">0</span> 人</b><div class="small">预计等待约 <span id="queueWait">0</span> 分钟</div></div>
-  <div class="adminLink"><button onclick="goAdmin('adminBookingsView')">🔐 刘刘管理入口</button></div>
 </section>
 
 <!-- 预约表单 -->
 <section id="formView">
 <button class="back" onclick="show('homeView')">‹ 返回</button>
-<h2>预约时间</h2><div class="small" style="text-align:center">刘刘的预约小站</div>
-<div class="timebig" id="chosenTime">10:00 - 10:30</div>
+<h2>填写预约信息</h2><div class="small" style="text-align:center">刘刘的预约小站</div>
+<div class="timebig" id="chosenTime">请先选择时间段</div>
+<div class="small" style="text-align:center" id="rangeSub"></div>
 <label>您的姓名 *</label><input id="name" placeholder="请输入您的姓名"/>
 <label>沟通事项 *</label><textarea id="topic" placeholder="请简单说明沟通事项"></textarea>
 <label>备注（选填）</label><textarea id="note" placeholder="补充说明"></textarea>
 <div style="height:16px"></div><button class="btn primary" onclick="submitBooking()">提交预约申请</button>
-<p class="small">🔒 预约信息仅刘刘可见，其他人只能看到该时段已占用。</p>
+<p class="small">🔒 预约信息仅刘刘可见，其他人只能看到该时段已占用。提交后需刘刘确认，请耐心等待。</p>
 </section>
 
 <!-- 临时登记表单 -->
@@ -105,55 +97,52 @@ textarea{min-height:85px;resize:vertical}
 <div style="height:16px"></div><button class="btn primary" onclick="submitQueue()">加入等待</button>
 </section>
 
-<!-- 成功页 -->
+<!-- 成功页（仅表示申请已提交，等待确认） -->
 <section id="successView" class="success">
-<img src="/mascot.jpg" alt="" style="width:100px;height:100px;border-radius:22px;margin-bottom:12px"/>
 <h1>申请已提交！</h1><p id="successText"></p><button class="btn primary" onclick="show('homeView')">回到预约主页</button>
 </section>
 
-<!-- 预约管理（刘刘） -->
+<!-- 预约管理（刘刘 · 独立入口 /admin） -->
 <section id="adminBookingsView">
-<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>预约管理</h1>
+<button class="back" onclick="goAdmin('adminBookingsView')">‹ 返回</button><h1>管理首页</h1>
 <div class="card"><h2>我的状态</h2><div class="adminrow"><button class="btn" id="btnAvail" onclick="setStatus('available')">我现在有空</button><button class="btn" style="background:var(--pink)" id="btnBusy" onclick="setStatus('busy')">暂时别来</button></div></div>
-<div class="card"><h2>预约列表</h2><div id="bookingList"><span class="small">加载中…</span></div></div>
+<div class="card"><h2>⏳ 待审批预约</h2><div id="pendingList"><span class="small">加载中…</span></div></div>
+<div class="card"><h2>✅ 今日已通过</h2><div id="approvedList"><span class="small">加载中…</span></div></div>
+<div class="card"><h2>🕒 今日时间设置</h2><div class="small">关闭不开放的时段，访客就看不到</div><div id="openSlots" class="duration-options" style="margin-top:8px"></div></div>
 <div class="card qrbox"><h2>📲 分享预约页</h2><div class="small">让对方扫码即可预约（同一份数据）</div><button class="btn primary" onclick="showQR()">生成分享二维码</button></div>
 <p class="small">数据已保存在云端，不同手机扫码看到的是同一份预约。</p>
 </section>
 
 <!-- 临时记录（刘刘） -->
 <section id="adminQueueView">
-<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>临时记录</h1>
+<button class="back" onclick="goAdmin('adminBookingsView')">‹ 返回</button><h1>临时记录</h1>
 <div class="card"><h2>等待找我的人</h2><div id="queueList"><span class="small">加载中…</span></div></div>
-</section>
-
-<!-- 数据统计（刘刘） -->
-<section id="adminStatsView">
-<button class="back" onclick="show('homeView')">‹ 返回访客页</button><h1>数据统计</h1>
-<div class="statgrid" id="statGrid"><span class="small">加载中…</span></div>
 </section>
 
 <!-- 二维码弹层 -->
 <section id="qrView">
-<button class="back" onclick="show('adminBookingsView')">‹ 返回</button><h2>扫码预约</h2>
+<button class="back" onclick="goAdmin('adminBookingsView')">‹ 返回</button><h2>扫码预约</h2>
 <div class="qrbox"><div id="qrHolder"><span class="small">生成中…</span></div><div class="small" id="qrUrl"></div></div>
 </section>
 
 </main>
 
-<!-- 底部导航：仅管理员可见 -->
+<!-- 底部导航：仅管理员登录后可见 -->
 <div class="bottom" id="bottomNav">
-  <span id="navHome" class="active" onclick="show('homeView')">🏠 今日概览</span>
-  <span id="navBook" onclick="goAdmin('adminBookingsView')">📅 预约管理</span>
+  <span id="navBook" class="active" onclick="goAdmin('adminBookingsView')">📋 管理首页</span>
   <span id="navQueue" onclick="goAdmin('adminQueueView')">🕘 临时记录</span>
-  <span id="navStat" onclick="goAdmin('adminStatsView')">📊 数据统计</span>
 </div>
 
 <script>
 const API = '/api';
+const BASE = ['09:00','09:30','10:00','10:30','11:00','11:30','14:00','14:30','15:00','15:30'];
 let token = sessionStorage.getItem('liuliuToken') || '';
-let duration = 30, selectedTime = null;
+let selected = [];           // 访客选中的时段（必须是连续的一段）
+let lastSlots = [];          // 最近一次拉取的时段数据
+const isAdminEntry = location.pathname.indexOf('/admin') !== -1;
 
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
 function fmt(n){ return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
 
 async function api(path, opts={}){
@@ -177,36 +166,15 @@ function showBottomNav(){ document.getElementById('bottomNav').classList.add('vi
 function hideBottomNav(){ document.getElementById('bottomNav').classList.remove('visible'); }
 
 function show(id){
-  ['homeView','formView','queueFormView','successView','adminBookingsView','adminQueueView','adminStatsView','qrView']
+  ['homeView','formView','queueFormView','successView','adminBookingsView','adminQueueView','qrView']
     .forEach(x => document.getElementById(x).style.display = (x===id?'block':'none'));
   document.querySelectorAll('.bottom span').forEach(s=>s.classList.remove('active'));
-  const map={homeView:'navHome',adminBookingsView:'navBook',adminQueueView:'navQueue',adminStatsView:'navStat'};
+  const map={adminBookingsView:'navBook',adminQueueView:'navQueue'};
   if(map[id]) document.getElementById(map[id]).classList.add('active');
   window.scrollTo(0,0);
 }
 
-// ---------- 时长选择 ----------
-function setDuration(mins, btn){
-  duration = mins;
-  // 更新按钮样式
-  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  document.getElementById('customDurRow').classList.remove('show');
-}
-function toggleCustom(btn){
-  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('customDurRow').classList.toggle('show');
-}
-function applyCustom(){
-  const v = parseInt(document.getElementById('customMin').value);
-  if(!v || v<5 || v>180){ alert('请输入 5~180 之间的数字'); return; }
-  duration = v;
-  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
-  alert('已设为 '+v+' 分钟，请点击一个可预约时间');
-}
-
-// ---------- 主页 ----------
+// ---------- 主页（访客） ----------
 async function loadHome(){
   try{
     const s = await api('/state');
@@ -215,28 +183,66 @@ async function loadHome(){
     document.getElementById('statusText').textContent = s.status==='busy' ? '暂时不太方便，急事请走临时登记' : '现在方便沟通';
     document.getElementById('queueCount').textContent = s.queueCount;
     document.getElementById('queueWait').textContent = s.queueWaitMin;
-    const el = document.getElementById('slots'); el.innerHTML='';
-    s.slots.forEach(slot=>{
-      const d = document.createElement('div');
-      d.className = 'slot ' + (slot.available ? 'available' : 'booked');
-      d.innerHTML = `<span>${slot.time} - ${slot.end}</span><span class="tag">${slot.available?'🟢 可申请 ›':'⏳ 已占用 / 审批中'}</span>`;
-      if(slot.available) d.onclick = ()=>choose(slot.time);
-      el.appendChild(d);
-    });
+    lastSlots = s.slots;
+    renderSlots();
   }catch(e){ if(!e.auth) alert('加载失败，请刷新'); }
 }
-function choose(t){ selectedTime=t; document.getElementById('chosenTime').textContent = t+' - '+fmt(toMinLocal(t)+duration); show('formView'); }
-function toMinLocal(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
-
+function renderSlots(){
+  const el = document.getElementById('slots'); el.innerHTML='';
+  lastSlots.forEach(slot=>{
+    const d = document.createElement('div');
+    let cls = 'slot ';
+    if(slot.closed) cls += 'closed';
+    else if(slot.occupied) cls += 'booked';
+    else cls += 'available';
+    if(selected.includes(slot.time)) cls += ' selected';
+    d.className = cls;
+    const tag = slot.closed ? '🔒 未开放' : (slot.occupied ? '⏳ 已占用 / 审批中' : '🟢 可申请 ›');
+    d.innerHTML = `<span>${slot.time} - ${slot.end}</span><span class="tag">${tag}</span>`;
+    if(slot.available) d.onclick = ()=>toggleSlot(slot.time);
+    el.appendChild(d);
+  });
+  updateSelbar();
+}
+function toggleSlot(t){
+  if(selected.length === 0){ selected = [t]; }
+  else if(selected.includes(t)){
+    if(t === selected[0] && selected.length > 1) selected.shift();
+    else if(t === selected[selected.length-1]) selected.pop();
+    else selected = [t];
+  } else {
+    const fi = BASE.indexOf(selected[0]), li = BASE.indexOf(selected[selected.length-1]), ti = BASE.indexOf(t);
+    if(ti === fi - 1) selected.unshift(t);
+    else if(ti === li + 1) selected.push(t);
+    else selected = [t];   // 不允许非连续选择
+  }
+  renderSlots();
+}
+function updateSelbar(){
+  const bar = document.getElementById('selbar');
+  if(selected.length === 0){ bar.classList.remove('show'); return; }
+  const start = selected[0], dur = selected.length * 30, end = fmt(toMin(start) + dur);
+  document.getElementById('rangeInfo').textContent = `${start} - ${end} · 共 ${selected.length} 个时间段`;
+  bar.classList.add('show');
+}
+function openForm(){
+  if(selected.length === 0){ alert('请先选择时间段'); return; }
+  const start = selected[0], dur = selected.length * 30, end = fmt(toMin(start) + dur);
+  document.getElementById('chosenTime').textContent = `${start} - ${end}`;
+  document.getElementById('rangeSub').textContent = `共 ${selected.length} 个时间段（${dur} 分钟），提交后等待刘刘确认`;
+  show('formView');
+}
 async function submitBooking(){
   const name = document.getElementById('name').value.trim();
   const topic = document.getElementById('topic').value.trim();
   if(!name || !topic){ alert('请填写姓名和沟通事项'); return; }
+  const start = selected[0], dur = selected.length * 30;
   try{
     const r = await api('/bookings', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({time:selectedTime, duration, name, topic, note:document.getElementById('note').value})});
+      body: JSON.stringify({time:start, duration:dur, name, topic, note:document.getElementById('note').value})});
     if(r.error){ alert(r.error); return; }
-    document.getElementById('successText').textContent = `${name}，你的 ${selectedTime}（${duration}分钟）预约申请已提交，等待刘刘确认。`;
+    selected = [];
+    document.getElementById('successText').textContent = `${name}，你预约的 ${start} 起 ${dur} 分钟已提交申请，等待刘刘确认后会通知你～`;
     show('successView'); loadHome();
   }catch(e){ alert('提交失败，请重试'); }
 }
@@ -256,42 +262,70 @@ async function submitQueue(){
   }catch(e){ alert('提交失败，请重试'); }
 }
 
-// ---------- 管理入口（鉴权 + 路由） ----------
+// ---------- 管理入口（独立 /admin，鉴权 + 路由） ----------
 async function goAdmin(view){
   if(!(await ensureToken())) { show('homeView'); return; }
   show(view);
-  if(view==='adminBookingsView') loadBookings();
+  if(view==='adminBookingsView') loadAdmin();
   if(view==='adminQueueView') loadQueue();
-  if(view==='adminStatsView') loadStats();
 }
 
-async function loadBookings(){
+async function loadAdmin(){
   try{
     const s = await api('/admin/status');
     document.getElementById('btnAvail').style.opacity = s.status==='available'?1:.5;
     document.getElementById('btnBusy').style.opacity = s.status==='busy'?1:.5;
     const r = await api('/admin/bookings');
-    const el = document.getElementById('bookingList');
-    if(!r.bookings.length){ el.innerHTML='<span class="small">暂无预约</span>'; return; }
-    el.innerHTML = r.bookings.map(b=>`
-      <div class="booking"><b>${b.date} ${b.time} · ${b.name}</b><div>${b.topic}</div>
-      <div class="small">${b.duration} 分钟 · ${b.status==='pending'?'⏳ 待审批':b.status==='approved'?'✅ 已通过':'❌ 已拒绝'}</div>
-      ${b.status==='pending'?`<div class="adminrow" style="margin-top:9px">
-        <button class="btn" onclick="decide('${b.id}','approved')">✓ 通过</button>
-        <button class="btn" style="background:var(--pink)" onclick="decide('${b.id}','rejected')">✕ 拒绝</button></div>`:''}</div>`).join('');
+    const pending = r.bookings.filter(b=>b.status==='pending');
+    const approvedToday = r.bookings.filter(b=>b.status==='approved' && b.date===today());
+    const pe = document.getElementById('pendingList');
+    pe.innerHTML = pending.length ? pending.map(b=>bookingRow(b,true)).join('') : '<span class="small">暂无待审批</span>';
+    const ae = document.getElementById('approvedList');
+    ae.innerHTML = approvedToday.length ? approvedToday.map(b=>bookingRow(b,false)).join('') : '<span class="small">今日暂无已通过预约</span>';
+    loadOpenSlots();
   }catch(e){ if(!e.auth) alert('加载失败'); }
+}
+function bookingRow(b, withActions){
+  const note = b.note ? (' · 备注：'+b.note) : '';
+  const statusText = b.status==='pending'?'⏳ 待审批':b.status==='approved'?'✅ 已通过':'❌ 已拒绝';
+  const actions = withActions ? `<div class="adminrow" style="margin-top:9px">
+    <button class="btn" onclick="decide('${b.id}','approved')">✓ 通过</button>
+    <button class="btn" style="background:var(--pink)" onclick="decide('${b.id}','rejected')">✕ 拒绝</button></div>` : '';
+  return `<div class="booking"><b>${b.date} ${b.time} · ${b.name}</b><div>${b.topic}</div>
+    <div class="small">${b.duration} 分钟 · ${statusText}${note}</div>${actions}</div>`;
 }
 async function decide(id, decision){
   try{
     await api('/admin/bookings/'+id+'/decide', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({decision})});
-    loadBookings();
+    loadAdmin();
   }catch(e){ alert('操作失败'); }
 }
 async function setStatus(status){
   try{
     await api('/admin/status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
-    loadBookings(); loadHome();
+    loadAdmin(); loadHome();
   }catch(e){ alert('操作失败'); }
+}
+
+// 今日时间设置（开放时段开关）
+async function loadOpenSlots(){
+  try{
+    const r = await api('/admin/open-slots');
+    const open = r.openSlots || BASE;
+    document.getElementById('openSlots').innerHTML = BASE.map(t=>
+      `<button class="dur-btn ${open.includes(t)?'active':''}" onclick="toggleOpen('${t}',this)">${t}</button>`).join('');
+  }catch(e){}
+}
+async function toggleOpen(t, btn){
+  try{
+    const r0 = await api('/admin/open-slots');
+    let open = (r0.openSlots || BASE).slice();
+    if(open.includes(t)) open = open.filter(x=>x!==t); else open.push(t);
+    open = BASE.filter(x=>open.includes(x));
+    await api('/admin/open-slots', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({openSlots:open})});
+    btn.classList.toggle('active');
+    loadHome();
+  }catch(e){ alert('设置失败'); }
 }
 
 async function loadQueue(){
@@ -306,19 +340,6 @@ async function loadQueue(){
 }
 async function removeQueue(id){
   try{ await api('/admin/queue/'+id, {method:'DELETE'}); loadQueue(); loadHome(); }catch(e){ alert('操作失败'); }
-}
-
-async function loadStats(){
-  try{
-    const r = await api('/admin/stats');
-    document.getElementById('statGrid').innerHTML = `
-      <div class="stat"><b>${r.total}</b><div class="small">累计预约</div></div>
-      <div class="stat"><b>${r.todayBookings}</b><div class="small">今日预约</div></div>
-      <div class="stat"><b style="color:#e0a000">${r.pending}</b><div class="small">待审批</div></div>
-      <div class="stat"><b style="color:#3a9d5a">${r.approved}</b><div class="small">已通过</div></div>
-      <div class="stat"><b style="color:#c25">${r.rejected}</b><div class="small">已拒绝</div></div>
-      <div class="stat"><b>${r.queueCount}</b><div class="small">等待人数</div></div>`;
-  }catch(e){ if(!e.auth) alert('加载失败'); }
 }
 
 // ---------- 分享二维码 ----------
@@ -344,9 +365,22 @@ function renderQR(url){
   });
 }
 
-// 启动
+// ---------- 启动 ----------
 loadHome();
-show('homeView');
-if(token) showBottomNav(); else hideBottomNav();
+if(isAdminEntry){
+  hideBottomNav();
+  (async()=>{
+    if(await ensureToken()){ showBottomNav(); show('adminBookingsView'); loadAdmin(); }
+    else {
+      document.getElementById('homeView').innerHTML =
+        '<div class="card" style="margin-top:40px;text-align:center"><h2>管理入口</h2>'+
+        '<p class="small">口令错误，无法进入后台。<br>请确认访问的是 /admin 且口令正确。</p></div>';
+      show('homeView');
+    }
+  })();
+} else {
+  hideBottomNav();
+  show('homeView');
+}
 </script>
 </body></html>
