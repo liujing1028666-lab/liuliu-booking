@@ -12,7 +12,7 @@ const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // 可预约时段（30 分钟一格），可按需增删
-const BASE_TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30'];
+const BASE_TIMES = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:30', '14:00', '14:30', '15:00', '15:30'];
 const SLOT_MIN = 30;
 const AVG_WAIT = 10; // 每位等待者平均耗时（分钟），用于估算等待时长
 
@@ -73,6 +73,17 @@ const server = http.createServer(async (req, res) => {
   // ---------- 静态页面 ----------
   if (req.method === 'GET' && (p === '/' || p === '/index.html' || p === '/admin')) {
     return serveFile(res, path.join(PUBLIC_DIR, 'index.html'), 'text/html; charset=utf-8');
+  }
+
+  // ---------- 静态资源（图片/CSS/JS/SVG 等） ----------
+  if (req.method === 'GET') {
+    const rel = path.normalize(p).replace(/^(\.\.[\/\\])+/, '').replace(/^[/\\]+/, '');
+    const filePath = path.join(PUBLIC_DIR, rel);
+    if (filePath.startsWith(PUBLIC_DIR)) {
+      const ext = path.extname(filePath).toLowerCase();
+      const TYPES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.css': 'text/css', '.js': 'application/javascript', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp' };
+      if (TYPES[ext]) return serveFile(res, filePath, TYPES[ext]);
+    }
   }
 
   // ---------- 开放接口（访客） ----------
